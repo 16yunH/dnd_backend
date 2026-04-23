@@ -4,7 +4,7 @@ import { z } from "zod";
 import { HttpError } from "../lib/httpError.js";
 import { requireAuth } from "../middleware/auth.js";
 import { AuthService } from "../services/authService.js";
-import { JsonStore } from "../services/jsonStore.js";
+import type { Store } from "../services/store.js";
 import { RulesDataService } from "../services/rulesData.js";
 import { computeDerivedStats } from "../lib/derivedStats.js";
 import type { CharacterInput } from "../types/domain.js";
@@ -121,7 +121,7 @@ const mergeCharacter = (
 
 export const buildCharactersRouter = (deps: {
   authService: AuthService;
-  store: JsonStore;
+  store: Store;
   rules: RulesDataService;
 }) => {
   const router = Router();

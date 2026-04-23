@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { AuthService } from "../services/authService.js";
-import { JsonStore } from "../services/jsonStore.js";
+import type { Store } from "../services/store.js";
 import { requireAuth } from "../middleware/auth.js";
 
 const guestLoginSchema = z.object({
@@ -10,7 +10,7 @@ const guestLoginSchema = z.object({
 
 export const buildAuthRouter = (deps: {
   authService: AuthService;
-  store: JsonStore;
+  store: Store;
 }) => {
   const router = Router();
 

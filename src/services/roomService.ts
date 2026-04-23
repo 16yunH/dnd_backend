@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { HttpError } from "../lib/httpError.js";
-import { rollD20Check } from "../lib/dice.js";
 import type {
   CharacterRecord,
   RoomMessageRecord,
@@ -8,7 +7,8 @@ import type {
   RoomRecord,
   UserRecord
 } from "../types/domain.js";
-import { JsonStore } from "./jsonStore.js";
+import type { NarrativeService } from "./narrativeService.js";
+import type { Store } from "./store.js";
 
 export interface RoomPublisher {
   publishRoomSnapshot(room: RoomRecord): void;
@@ -18,21 +18,6 @@ export interface RoomPublisher {
     roomVersion: number
   ): void;
 }
-
-const KEYWORD_SKILL_MAP: Array<{
-  keywords: string[];
-  skillId: string;
-  stat: "str" | "dex" | "con" | "int" | "wis" | "cha";
-}> = [
-  { keywords: ["洞察"], skillId: "insight", stat: "wis" },
-  { keywords: ["察觉", "观察"], skillId: "perception", stat: "wis" },
-  { keywords: ["威吓"], skillId: "intimidation", stat: "cha" },
-  { keywords: ["游说", "说服"], skillId: "persuasion", stat: "cha" },
-  { keywords: ["隐匿", "潜行"], skillId: "stealth", stat: "dex" },
-  { keywords: ["运动"], skillId: "athletics", stat: "str" },
-  { keywords: ["体操"], skillId: "acrobatics", stat: "dex" },
-  { keywords: ["调查"], skillId: "investigation", stat: "int" }
-];
 
 const randomRoomCode = (): string => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -48,12 +33,17 @@ const cloneRoom = (room: RoomRecord): RoomRecord => {
 };
 
 export class RoomService {
-  private readonly store: JsonStore;
+  private readonly store: Store;
+  private readonly narrative?: NarrativeService;
   private publisher?: RoomPublisher;
 
-  constructor(store: JsonStore, publisher?: RoomPublisher) {
+  constructor(
+    store: Store,
+    options: { publisher?: RoomPublisher; narrative?: NarrativeService } = {}
+  ) {
     this.store = store;
-    this.publisher = publisher;
+    this.publisher = options.publisher;
+    this.narrative = options.narrative;
   }
 
   public setPublisher(publisher: RoomPublisher) {
@@ -322,30 +312,6 @@ export class RoomService {
     return this.store.listRoomMessages(roomId, afterSeq, limit);
   }
 
-  private resolveActionCheck(content: string, character?: CharacterRecord) {
-    const normalized = content.toLowerCase();
-    const match = KEYWORD_SKILL_MAP.find((item) =>
-      item.keywords.some((keyword) => content.includes(keyword))
-    );
-
-    if (!match && !normalized.includes("检定") && !normalized.includes("d20")) {
-      return null;
-    }
-
-    const dc = content.includes("非常困难") ? 18 : content.includes("困难") ? 15 : 12;
-
-    let bonus = 0;
-    let bonusLabel = "基础检定";
-    if (match && character) {
-      const statMod = character.derived.modifiers[match.stat] ?? 0;
-      const hasProf = Boolean(character.proficiencies.skills[match.skillId]);
-      bonus = statMod + (hasProf ? character.derived.profBonus : 0);
-      bonusLabel = `${match.skillId}${hasProf ? "(熟练)" : ""}`;
-    }
-
-    return rollD20Check({ bonus, dc, bonusLabel });
-  }
-
   public async submitAction(
     user: UserRecord,
     roomId: string,
@@ -380,34 +346,53 @@ export class RoomService {
       })
     );
 
-    const check = this.resolveActionCheck(input.content, character);
-    if (check) {
-      created.push(
-        await this.store.appendRoomMessage({
-          roomId,
-          role: "system",
-          content: `[判定] d20=${check.kept?.[0] ?? check.rolls[0]}，加值=${check.bonus >= 0 ? "+" : ""}${check.bonus}（${check.bonusLabel}），总值=${check.total}，DC=${check.dc}，结果=${check.success ? "成功" : "失败"}${check.isCrit ? "（大成功）" : check.isFumble ? "（大失败）" : ""}`,
-          meta: {
-            check
-          }
-        })
-      );
-      created.push(
-        await this.store.appendRoomMessage({
-          roomId,
-          role: "dm",
-          content: check.success
-            ? "你行动得当，局势向有利方向倾斜。旅店老板的语气明显缓和下来，似乎愿意透露更多信息。"
-            : "你的尝试并未达到预期。旅店老板警惕地后退半步，目光在你们的武器与门口之间来回游移。"
-        })
-      );
+    if (this.narrative) {
+      const history = await this.store.listRoomMessages(roomId, 0, 50);
+      try {
+        const turn = await this.narrative.respondToAction({
+          room,
+          character,
+          playerContent: input.content,
+          history
+        });
+
+        if (turn.check) {
+          const c = turn.check;
+          created.push(
+            await this.store.appendRoomMessage({
+              roomId,
+              role: "system",
+              content: `[判定/${turn.requestedSkill ?? "check"}] d20=${c.kept?.[0] ?? c.rolls[0]}，加值=${c.bonus >= 0 ? "+" : ""}${c.bonus}（${c.bonusLabel}），总值=${c.total}，DC=${c.dc}，结果=${c.success ? "成功" : "失败"}${c.isCrit ? "（大成功）" : c.isFumble ? "（大失败）" : ""}`,
+              meta: { check: c, requestedSkill: turn.requestedSkill }
+            })
+          );
+        }
+
+        created.push(
+          await this.store.appendRoomMessage({
+            roomId,
+            role: "dm",
+            content: turn.narration,
+            meta: turn.totalTokens ? { tokens: turn.totalTokens } : undefined
+          })
+        );
+      } catch {
+        // narrative failed (network, upstream 5xx, etc) — degrade gracefully
+        created.push(
+          await this.store.appendRoomMessage({
+            roomId,
+            role: "dm",
+            content:
+              "（DM 暂时失神，无法回应。请稍后重试，或检查 LLM 服务配置。）"
+          })
+        );
+      }
     } else {
       created.push(
         await this.store.appendRoomMessage({
           roomId,
           role: "dm",
-          content:
-            "老板听完你的话，皱眉片刻后点了点头：\n“继续说下去，旅人。你们想从我这里打听什么？”"
+          content: "（未接入 DM 引擎。请在后端启用 NarrativeService。）"
         })
       );
     }

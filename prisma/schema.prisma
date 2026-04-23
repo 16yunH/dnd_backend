@@ -1,0 +1,132 @@
+// Phase 2 schema — introduces the persistent layer that will back the
+// `Store` interface in src/services/store.ts. pgvector is enabled for
+// phase 4 RAG; no application code depends on it yet.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+generator pgvectorPreview {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+model User {
+  id           String      @id @default(uuid())
+  nickname     String      @unique
+  passwordHash String?
+  createdAt    DateTime    @default(now())
+  characters   Character[]
+  sessions     Session[]
+  roomPlayers  RoomPlayer[]
+  hostedRooms  Room[]      @relation("RoomHost")
+}
+
+model Session {
+  token     String   @id
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Character {
+  id           String   @id @default(uuid())
+  ownerUserId  String
+  name         String
+  basic        Json
+  statMethod   String
+  baseStats    Json
+  proficiencies Json
+  equipment    Json
+  derived      Json
+  spells       String   @default("")
+  specialAttrs String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  owner        User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  roomPlayers  RoomPlayer[]
+
+  @@index([ownerUserId, updatedAt])
+}
+
+model Room {
+  id           String       @id // 6-char invite code, uppercased
+  hostUserId   String
+  state        String       @default("waiting")
+  roomVersion  Int          @default(1)
+  config       Json
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  host         User         @relation("RoomHost", fields: [hostUserId], references: [id])
+  players      RoomPlayer[]
+  messages     RoomMessage[]
+  summaries    RoomSummary[]
+}
+
+model RoomPlayer {
+  id          String    @id @default(uuid())
+  roomId      String
+  userId      String
+  characterId String?
+  isReady     Boolean   @default(false)
+  joinedAt    DateTime  @default(now())
+  room        Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+
+  @@unique([roomId, userId])
+  @@index([userId])
+}
+
+model RoomMessage {
+  id            String   @id @default(uuid())
+  roomId        String
+  seq           Int
+  role          String   // system | dm | player
+  senderUserId  String?
+  senderName    String?
+  content       String
+  meta          Json?
+  createdAt     DateTime @default(now())
+  room          Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, seq])
+  @@index([roomId, createdAt])
+}
+
+/// Periodic summaries for context compression (phase 4).
+model RoomSummary {
+  id        String   @id @default(uuid())
+  roomId    String
+  upToSeq   Int
+  summary   String
+  createdAt DateTime @default(now())
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, upToSeq])
+}
+
+/// RAG corpus. Embeddings are populated by phase-4 ingest tooling.
+/// `Unsupported` keeps Prisma happy — we'll query via raw SQL.
+model RuleChunk {
+  id        String                       @id @default(uuid())
+  source    String
+  section   String?
+  content   String
+  tokens    Int?
+  embedding Unsupported("vector(1024)")?
+  metadata  Json?
+  createdAt DateTime                     @default(now())
+
+  @@index([source])
+}

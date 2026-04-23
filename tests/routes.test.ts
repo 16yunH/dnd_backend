@@ -9,7 +9,7 @@ describe("smoke routes", () => {
 
   beforeEach(() => {
     ctx = makeTempStore();
-    app = createApp({ store: ctx.store }).app;
+    app = createApp({ store: ctx.store, enableNarrative: false }).app;
   });
 
   afterEach(() => ctx.cleanup());

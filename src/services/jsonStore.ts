@@ -8,6 +8,7 @@ import type {
   RoomRecord,
   UserRecord
 } from "../types/domain.js";
+import type { Store } from "./store.js";
 
 const DEFAULT_DB: DbFile = {
   users: [],
@@ -17,8 +18,15 @@ const DEFAULT_DB: DbFile = {
   roomSeqById: {}
 };
 
-export class JsonStore {
+/**
+ * Dev-only persistence: one JSON file read + rewritten per mutation.
+ * Mutations are serialized through `queue` so concurrent writes don't
+ * clobber each other; this is adequate for a single-node dev server
+ * but will be replaced by a real DB in phase 2.
+ */
+export class JsonStore implements Store {
   private readonly dbPath: string;
+  private queue: Promise<unknown> = Promise.resolve();
 
   constructor(dbPath = path.join(process.cwd(), "storage", "dev-db.json")) {
     this.dbPath = dbPath;
@@ -52,27 +60,34 @@ export class JsonStore {
     await writeFile(this.dbPath, JSON.stringify(db, null, 2), "utf-8");
   }
 
+  /** Run `work` serialized against all other mutations on this store. */
+  private mutate<T>(work: (db: DbFile) => Promise<T> | T): Promise<T> {
+    const next = this.queue.then(async () => {
+      const db = await this.readDb();
+      const result = await work(db);
+      await this.writeDb(db);
+      return result;
+    });
+    // keep queue alive but swallow errors so one failure doesn't kill subsequent ops
+    this.queue = next.catch(() => undefined);
+    return next;
+  }
+
   public async getOrCreateUser(nickname: string): Promise<UserRecord> {
     const normalized = nickname.trim();
-    const db = await this.readDb();
-    const existing = db.users.find(
-      (user) => user.nickname.toLowerCase() === normalized.toLowerCase()
-    );
-
-    if (existing) {
-      return existing;
-    }
-
-    const now = new Date().toISOString();
-    const newUser: UserRecord = {
-      id: randomUUID(),
-      nickname: normalized,
-      createdAt: now
-    };
-
-    db.users.push(newUser);
-    await this.writeDb(db);
-    return newUser;
+    return this.mutate((db) => {
+      const existing = db.users.find(
+        (user) => user.nickname.toLowerCase() === normalized.toLowerCase()
+      );
+      if (existing) return existing;
+      const user: UserRecord = {
+        id: randomUUID(),
+        nickname: normalized,
+        createdAt: new Date().toISOString()
+      };
+      db.users.push(user);
+      return user;
+    });
   }
 
   public async getUserById(userId: string): Promise<UserRecord | undefined> {
@@ -98,32 +113,22 @@ export class JsonStore {
   }
 
   public async upsertCharacter(record: CharacterRecord): Promise<CharacterRecord> {
-    const db = await this.readDb();
-    const index = db.characters.findIndex((item) => item.id === record.id);
-
-    if (index >= 0) {
-      db.characters[index] = record;
-    } else {
-      db.characters.push(record);
-    }
-
-    await this.writeDb(db);
-    return record;
+    return this.mutate((db) => {
+      const index = db.characters.findIndex((item) => item.id === record.id);
+      if (index >= 0) db.characters[index] = record;
+      else db.characters.push(record);
+      return record;
+    });
   }
 
   public async deleteCharacter(userId: string, characterId: string): Promise<boolean> {
-    const db = await this.readDb();
-    const before = db.characters.length;
-    db.characters = db.characters.filter(
-      (record) => !(record.ownerUserId === userId && record.id === characterId)
-    );
-
-    if (db.characters.length === before) {
-      return false;
-    }
-
-    await this.writeDb(db);
-    return true;
+    return this.mutate((db) => {
+      const before = db.characters.length;
+      db.characters = db.characters.filter(
+        (record) => !(record.ownerUserId === userId && record.id === characterId)
+      );
+      return db.characters.length !== before;
+    });
   }
 
   public async getRoomById(roomId: string): Promise<RoomRecord | undefined> {
@@ -132,15 +137,12 @@ export class JsonStore {
   }
 
   public async upsertRoom(room: RoomRecord): Promise<RoomRecord> {
-    const db = await this.readDb();
-    const index = db.rooms.findIndex((item) => item.id === room.id);
-    if (index >= 0) {
-      db.rooms[index] = room;
-    } else {
-      db.rooms.push(room);
-    }
-    await this.writeDb(db);
-    return room;
+    return this.mutate((db) => {
+      const index = db.rooms.findIndex((item) => item.id === room.id);
+      if (index >= 0) db.rooms[index] = room;
+      else db.rooms.push(room);
+      return room;
+    });
   }
 
   public async listRoomMessages(
@@ -163,24 +165,23 @@ export class JsonStore {
     content: string;
     meta?: Record<string, unknown>;
   }): Promise<RoomMessageRecord> {
-    const db = await this.readDb();
-    const nextSeq = (db.roomSeqById[input.roomId] ?? 0) + 1;
-    db.roomSeqById[input.roomId] = nextSeq;
+    return this.mutate((db) => {
+      const nextSeq = (db.roomSeqById[input.roomId] ?? 0) + 1;
+      db.roomSeqById[input.roomId] = nextSeq;
 
-    const record: RoomMessageRecord = {
-      id: randomUUID(),
-      roomId: input.roomId,
-      seq: nextSeq,
-      role: input.role,
-      senderUserId: input.senderUserId,
-      senderName: input.senderName,
-      content: input.content,
-      createdAt: new Date().toISOString(),
-      meta: input.meta
-    };
-
-    db.roomMessages.push(record);
-    await this.writeDb(db);
-    return record;
+      const record: RoomMessageRecord = {
+        id: randomUUID(),
+        roomId: input.roomId,
+        seq: nextSeq,
+        role: input.role,
+        senderUserId: input.senderUserId,
+        senderName: input.senderName,
+        content: input.content,
+        createdAt: new Date().toISOString(),
+        meta: input.meta
+      };
+      db.roomMessages.push(record);
+      return record;
+    });
   }
 }

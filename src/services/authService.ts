@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { UserRecord } from "../types/domain.js";
-import { JsonStore } from "./jsonStore.js";
+import type { Store } from "./store.js";
 
 interface SessionRecord {
   token: string;
@@ -12,9 +12,9 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 
 export class AuthService {
   private readonly sessions = new Map<string, SessionRecord>();
-  private readonly store: JsonStore;
+  private readonly store: Store;
 
-  constructor(store: JsonStore) {
+  constructor(store: Store) {
     this.store = store;
   }
 

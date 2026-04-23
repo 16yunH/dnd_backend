@@ -113,6 +113,35 @@ tests/                  // Vitest
   - `room:messages { roomId, roomVersion, messages[] }`
   - `room:error { message }`
 
+## LLM 与 AI DM
+
+- 抽象接口：[`src/services/llm/types.ts`](src/services/llm/types.ts)
+- OpenAI 兼容适配器（DeepSeek / Zhipu GLM / 本地 vLLM 等）：[`src/services/llm/openaiCompatible.ts`](src/services/llm/openaiCompatible.ts)
+- 无 API key 时自动回退：[`src/services/llm/echoClient.ts`](src/services/llm/echoClient.ts)
+- 工厂：[`src/services/llm/index.ts`](src/services/llm/index.ts)，按 `LLM_PROVIDER` 选择实现
+- 编排：[`src/services/narrativeService.ts`](src/services/narrativeService.ts) 把玩家输入 → LLM → 规则检定 → 续写串成一次 DM 回合
+  - **骰子一定由后端掷**，LLM 通过 tool call (`require_skill_check`) 声明需要检定；工具响应带着骰子结果回喂给 LLM 生成续写
+  - 角色熟练项 + 属性调整值自动叠加
+  - 空 API key 时走 EchoLLMClient，保证所有测试 / CI / 无网络环境可跑
+
+示例：在 `.env` 里写 `LLM_PROVIDER=deepseek` 和 `LLM_API_KEY=sk-...`，启动后端，前端发送一条玩家动作，DM 回复就会接真实模型。
+
+## 数据库（阶段 2 预备）
+
+- `docker-compose.yml` 启动 `pgvector/pgvector:pg16`
+- `prisma/schema.prisma` 预定义全部表 + 向量列，见文件注释
+- `src/services/store.ts` 是所有业务服务共享的 `Store` 抽象；当前由 `JsonStore`（带串行化 mutex 的 JSON 文件）实现，切到 Prisma 时只需替换具体类
+
+```bash
+# 启动 Postgres + pgvector
+docker compose up -d
+
+# 生成 Prisma client（先 npm i prisma @prisma/client）
+# npx prisma migrate dev --name init
+```
+
+> 当前代码不强依赖 Prisma；真正接入时新增 `PrismaStore implements Store` 即可。
+
 ## 骰子 (`src/lib/dice.ts`)
 
 - `roll("2d6+3")` — 按标准表达式
@@ -121,8 +150,13 @@ tests/                  // Vitest
 
 ## 路线图
 
-详见 [PLAN.md](./PLAN.md)。当前处于**阶段 1（地基巩固）**：
-测试 + CI + 日志 + 骰子抽象 + env 扩展 已完成；下一步转入阶段 2（PostgreSQL + Prisma 持久化）。
+详见 [PLAN.md](./PLAN.md)。当前进度：
+
+- ✅ 阶段 1 · 地基巩固：Vitest + CI + pino 日志 + dice lib + 统一错误体
+- ✅ 阶段 2 · 持久化（准备层）：`Store` 抽象 + `JsonStore` 带互斥 + docker-compose + Prisma schema
+- ✅ 阶段 4a · LLM 抽象：Provider 可插拔 + NarrativeService（工具调用 + 服务端骰子）
+- ⏭ 阶段 3 · 战斗 / 地图
+- ⏭ 阶段 4b · RAG ingest + pgvector 查询
 
 ## 许可
 

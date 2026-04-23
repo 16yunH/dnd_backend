@@ -36,7 +36,8 @@ describe("rollD20Check()", () => {
   it("returns success when bonus+roll >= dc", () => {
     const result = rollD20Check({ bonus: 100, dc: 10 });
     expect(result.success).toBe(true);
-    expect(result.total).toBeGreaterThanOrEqual(10 + 100 + 1);
+    expect(result.total).toBeGreaterThanOrEqual(100 + 1);
+    expect(result.total).toBeLessThanOrEqual(100 + 20);
   });
 
   it("marks crits and fumbles on natural 20/1 range", () => {

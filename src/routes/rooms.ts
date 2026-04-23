@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import { AuthService } from "../services/authService.js";
-import { JsonStore } from "../services/jsonStore.js";
+import type { Store } from "../services/store.js";
 import { RoomService } from "../services/roomService.js";
 import { HttpError } from "../lib/httpError.js";
 
@@ -39,7 +39,7 @@ const messagesQuerySchema = z.object({
 
 export const buildRoomsRouter = (deps: {
   authService: AuthService;
-  store: JsonStore;
+  store: Store;
   roomService: RoomService;
 }) => {
   const router = Router();

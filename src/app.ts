@@ -11,19 +11,28 @@ import { buildRoomsRouter } from "./routes/rooms.js";
 import { buildRulesRouter } from "./routes/rules.js";
 import { AuthService } from "./services/authService.js";
 import { JsonStore } from "./services/jsonStore.js";
+import { createLLMClient, type LLMClient } from "./services/llm/index.js";
+import { NarrativeService } from "./services/narrativeService.js";
+import type { Store } from "./services/store.js";
 import { RoomService } from "./services/roomService.js";
 import { RulesDataService } from "./services/rulesData.js";
 
 export interface CreateAppOptions {
-  store?: JsonStore;
+  store?: Store;
+  llm?: LLMClient;
+  /** Set false to skip NarrativeService (useful for route smoke tests). */
+  enableNarrative?: boolean;
 }
 
 export const createApp = (options: CreateAppOptions = {}) => {
   const app = express();
-  const store = options.store ?? new JsonStore();
+  const store: Store = options.store ?? new JsonStore();
   const rules = new RulesDataService();
   const authService = new AuthService(store);
-  const roomService = new RoomService(store);
+
+  const llm = options.enableNarrative === false ? undefined : options.llm ?? createLLMClient();
+  const narrative = llm ? new NarrativeService(llm, store) : undefined;
+  const roomService = new RoomService(store, { narrative });
 
   app.use(helmet());
   app.use(
