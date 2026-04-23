@@ -28,6 +28,9 @@ const defaultParticipants: CombatParticipant[] = [
   { name: "哥布林", type: "npc", dexModifier: 2, maxHp: 7, ac: 15 }
 ];
 
+const findCombatantByName = (room: RoomRecord, name: string) =>
+  room.combat!.combatants.find((c) => c.name === name)!;
+
 describe("CombatService", () => {
   describe("startCombat", () => {
     it("initializes CombatState with initiative-sorted combatants and sets room state to combat", async () => {
@@ -108,7 +111,7 @@ describe("CombatService", () => {
 
         const svc = new CombatService(store);
         const started = await svc.startCombat(room.id, defaultParticipants);
-        const target = started.combat!.combatants[0];
+        const target = findCombatantByName(started, "战士");
 
         const result = await svc.applyDamage(room.id, target.id, 10);
         expect(result.hp).toBe(target.maxHp - 10);
@@ -125,7 +128,7 @@ describe("CombatService", () => {
 
         const svc = new CombatService(store);
         const started = await svc.startCombat(room.id, defaultParticipants);
-        const target = started.combat!.combatants[0];
+        const target = findCombatantByName(started, "战士");
 
         await svc.addTempHp(room.id, target.id, 5);
         const result = await svc.applyDamage(room.id, target.id, 8);
@@ -145,7 +148,7 @@ describe("CombatService", () => {
 
         const svc = new CombatService(store);
         const started = await svc.startCombat(room.id, defaultParticipants);
-        const target = started.combat!.combatants[0];
+        const target = findCombatantByName(started, "战士");
 
         const result = await svc.applyDamage(room.id, target.id, 9999);
         expect(result.hp).toBe(0);
@@ -164,7 +167,7 @@ describe("CombatService", () => {
 
         const svc = new CombatService(store);
         const started = await svc.startCombat(room.id, defaultParticipants);
-        const target = started.combat!.combatants[0];
+        const target = findCombatantByName(started, "战士");
 
         await svc.applyDamage(room.id, target.id, 15);
         const result = await svc.heal(room.id, target.id, 10);
@@ -182,7 +185,7 @@ describe("CombatService", () => {
 
         const svc = new CombatService(store);
         const started = await svc.startCombat(room.id, defaultParticipants);
-        const target = started.combat!.combatants[0];
+        const target = findCombatantByName(started, "战士");
 
         await svc.applyDamage(room.id, target.id, 5);
         const result = await svc.heal(room.id, target.id, 9999);
@@ -202,7 +205,7 @@ describe("CombatService", () => {
 
         const svc = new CombatService(store);
         const started = await svc.startCombat(room.id, defaultParticipants);
-        const target = started.combat!.combatants[0];
+        const target = findCombatantByName(started, "战士");
 
         const r1 = await svc.addTempHp(room.id, target.id, 5);
         expect(r1.tempHp).toBe(5);
@@ -227,7 +230,7 @@ describe("CombatService", () => {
 
         const svc = new CombatService(store);
         const started = await svc.startCombat(room.id, defaultParticipants);
-        const target = started.combat!.combatants[0];
+        const target = findCombatantByName(started, "战士");
 
         const result = await svc.addCondition(room.id, target.id, "poisoned");
         expect(result.conditions).toContain("poisoned");
@@ -244,7 +247,7 @@ describe("CombatService", () => {
 
         const svc = new CombatService(store);
         const started = await svc.startCombat(room.id, defaultParticipants);
-        const target = started.combat!.combatants[0];
+        const target = findCombatantByName(started, "战士");
 
         await svc.addCondition(room.id, target.id, "poisoned");
         const result = await svc.addCondition(room.id, target.id, "poisoned");
@@ -262,7 +265,7 @@ describe("CombatService", () => {
 
         const svc = new CombatService(store);
         const started = await svc.startCombat(room.id, defaultParticipants);
-        const target = started.combat!.combatants[0];
+        const target = findCombatantByName(started, "战士");
 
         await svc.addCondition(room.id, target.id, "poisoned");
         await svc.addCondition(room.id, target.id, "blinded");
