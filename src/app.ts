@@ -1,7 +1,9 @@
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import { env } from "./config/env.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
+import { requestLogger } from "./middleware/requestLogger.js";
 import { buildAuthRouter } from "./routes/auth.js";
 import { buildCharactersRouter } from "./routes/characters.js";
 import { buildHealthRouter } from "./routes/health.js";
@@ -12,16 +14,26 @@ import { JsonStore } from "./services/jsonStore.js";
 import { RoomService } from "./services/roomService.js";
 import { RulesDataService } from "./services/rulesData.js";
 
-export const createApp = () => {
+export interface CreateAppOptions {
+  store?: JsonStore;
+}
+
+export const createApp = (options: CreateAppOptions = {}) => {
   const app = express();
-  const store = new JsonStore();
+  const store = options.store ?? new JsonStore();
   const rules = new RulesDataService();
   const authService = new AuthService(store);
   const roomService = new RoomService(store);
 
   app.use(helmet());
-  app.use(cors());
+  app.use(
+    cors({
+      origin: env.CORS_ORIGINS.length > 0 ? env.CORS_ORIGINS : true,
+      credentials: true
+    })
+  );
   app.use(express.json({ limit: "1mb" }));
+  app.use(requestLogger);
 
   app.use(buildHealthRouter());
   app.use("/v1/auth", buildAuthRouter({ authService, store }));

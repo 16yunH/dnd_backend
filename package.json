@@ -1,32 +1,44 @@
 {
   "name": "dnd_backend",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "0.1.0",
+  "description": "Backend for the D&D AI tabletop platform (AI DM + character cards + rooms)",
+  "type": "module",
+  "main": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "check": "tsc --noEmit -p tsconfig.json"
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "dnd",
+    "5e",
+    "ai",
+    "llm",
+    "ttrpg"
+  ],
+  "author": "16yunH",
   "license": "ISC",
-  "type": "module",
   "dependencies": {
-    "cors": "^2.8.6",
+    "cors": "^2.8.5",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1",
+    "express": "^5.0.1",
     "helmet": "^8.1.0",
+    "pino": "^9.5.0",
+    "pino-pretty": "^11.3.0",
     "socket.io": "^4.8.3",
-    "zod": "^4.3.6"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/node": "^25.6.0",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.2",
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.3"
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
   }
 }

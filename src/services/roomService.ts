@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { HttpError } from "../lib/httpError.js";
+import { rollD20Check } from "../lib/dice.js";
 import type {
   CharacterRecord,
   RoomMessageRecord,
@@ -40,10 +41,6 @@ const randomRoomCode = (): string => {
     code += chars[Math.floor(Math.random() * chars.length)];
   }
   return code;
-};
-
-const rollD20 = (): number => {
-  return Math.floor(Math.random() * 20) + 1;
 };
 
 const cloneRoom = (room: RoomRecord): RoomRecord => {
@@ -335,7 +332,6 @@ export class RoomService {
       return null;
     }
 
-    const roll = rollD20();
     const dc = content.includes("非常困难") ? 18 : content.includes("困难") ? 15 : 12;
 
     let bonus = 0;
@@ -347,17 +343,7 @@ export class RoomService {
       bonusLabel = `${match.skillId}${hasProf ? "(熟练)" : ""}`;
     }
 
-    const total = roll + bonus;
-    const success = total >= dc;
-
-    return {
-      roll,
-      bonus,
-      total,
-      dc,
-      success,
-      bonusLabel
-    };
+    return rollD20Check({ bonus, dc, bonusLabel });
   }
 
   public async submitAction(
@@ -400,7 +386,7 @@ export class RoomService {
         await this.store.appendRoomMessage({
           roomId,
           role: "system",
-          content: `[判定] d20=${check.roll}，加值=${check.bonus >= 0 ? "+" : ""}${check.bonus}（${check.bonusLabel}），总值=${check.total}，DC=${check.dc}，结果=${check.success ? "成功" : "失败"}`,
+          content: `[判定] d20=${check.kept?.[0] ?? check.rolls[0]}，加值=${check.bonus >= 0 ? "+" : ""}${check.bonus}（${check.bonusLabel}），总值=${check.total}，DC=${check.dc}，结果=${check.success ? "成功" : "失败"}${check.isCrit ? "（大成功）" : check.isFumble ? "（大失败）" : ""}`,
           meta: {
             check
           }
