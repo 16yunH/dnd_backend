@@ -59,7 +59,28 @@ export interface UserRecord {
   createdAt: string;
 }
 
-export type RoomState = "waiting" | "playing" | "ended";
+export type RoomState = "waiting" | "exploration" | "combat" | "ended";
+
+export interface Combatant {
+  id: string;
+  name: string;
+  type: "pc" | "npc";
+  characterId?: string;
+  initiative: number;
+  hp: number;
+  maxHp: number;
+  tempHp: number;
+  ac: number;
+  conditions: string[];
+  position?: { x: number; y: number };
+}
+
+export interface CombatState {
+  round: number;
+  turnIndex: number;
+  combatants: Combatant[];
+  startedAt: string;
+}
 
 export interface RoomConfig {
   maxPlayers: number;
@@ -78,6 +99,22 @@ export interface RoomPlayer {
   joinedAt: string;
 }
 
+export interface GridToken {
+  id: string;
+  x: number;
+  y: number;
+  kind: "pc" | "npc" | "object";
+  characterId?: string;
+  label?: string;
+  color?: string;
+}
+
+export interface RoomGrid {
+  width: number;
+  height: number;
+  tokens: GridToken[];
+}
+
 export interface RoomRecord {
   id: string;
   inviteCode: string;
@@ -86,8 +123,10 @@ export interface RoomRecord {
   roomVersion: number;
   config: RoomConfig;
   players: RoomPlayer[];
+  grid?: RoomGrid;
   createdAt: string;
   updatedAt: string;
+  combat?: CombatState;
 }
 
 export type RoomMessageRole = "system" | "dm" | "player";
@@ -104,10 +143,19 @@ export interface RoomMessageRecord {
   meta?: Record<string, unknown>;
 }
 
+export interface RoomSummaryRecord {
+  id: string;
+  roomId: string;
+  upToSeq: number;
+  summary: string;
+  createdAt: string;
+}
+
 export interface DbFile {
   users: UserRecord[];
   characters: CharacterRecord[];
   rooms: RoomRecord[];
   roomMessages: RoomMessageRecord[];
   roomSeqById: Record<string, number>;
+  roomSummaries: RoomSummaryRecord[];
 }

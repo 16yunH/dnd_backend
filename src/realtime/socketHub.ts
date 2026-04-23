@@ -1,8 +1,9 @@
 import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
 import { AuthService } from "../services/authService.js";
+import { CombatService, type CombatPublisher } from "../services/combatService.js";
 import { RoomService, type RoomPublisher } from "../services/roomService.js";
-import type { RoomMessageRecord, RoomRecord } from "../types/domain.js";
+import type { RoomGrid, RoomMessageRecord, RoomRecord } from "../types/domain.js";
 
 const roomChannel = (roomId: string) => `room:${roomId.toUpperCase()}`;
 
@@ -21,7 +22,7 @@ const parseBearerToken = (value: string | undefined): string => {
   return token ?? "";
 };
 
-export class SocketHub implements RoomPublisher {
+export class SocketHub implements RoomPublisher, CombatPublisher {
   private readonly io: Server;
   private readonly authService: AuthService;
   private readonly roomService: RoomService;
@@ -123,6 +124,21 @@ export class SocketHub implements RoomPublisher {
       roomId,
       roomVersion,
       messages
+    });
+  }
+
+  public publishCombatUpdate(room: RoomRecord) {
+    this.io.to(roomChannel(room.id)).emit("room:combat", {
+      roomId: room.id,
+      roomVersion: room.roomVersion,
+      combat: room.combat ?? null
+    });
+  }
+
+  public publishGridUpdate(roomId: string, grid: RoomGrid) {
+    this.io.to(roomChannel(roomId)).emit("room:grid", {
+      roomId,
+      grid
     });
   }
 }

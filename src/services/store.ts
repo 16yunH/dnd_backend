@@ -2,6 +2,7 @@ import type {
   CharacterRecord,
   RoomMessageRecord,
   RoomRecord,
+  RoomSummaryRecord,
   UserRecord
 } from "../types/domain.js";
 
@@ -43,4 +44,12 @@ export interface Store {
     content: string;
     meta?: Record<string, unknown>;
   }): Promise<RoomMessageRecord>;
+
+  appendRoomSummary(input: {
+    roomId: string;
+    upToSeq: number;
+    summary: string;
+  }): Promise<RoomSummaryRecord>;
+
+  getLatestSummary(roomId: string): Promise<RoomSummaryRecord | undefined>;
 }

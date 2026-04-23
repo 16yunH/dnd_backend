@@ -4,6 +4,7 @@ import { z } from "zod";
 import { HttpError } from "../lib/httpError.js";
 import { requireAuth } from "../middleware/auth.js";
 import { AuthService } from "../services/authService.js";
+import { CharacterDraftService } from "../services/characterDraftService.js";
 import type { Store } from "../services/store.js";
 import { RulesDataService } from "../services/rulesData.js";
 import { computeDerivedStats } from "../lib/derivedStats.js";
@@ -123,10 +124,32 @@ export const buildCharactersRouter = (deps: {
   authService: AuthService;
   store: Store;
   rules: RulesDataService;
+  llm?: import("../services/llm/types.js").LLMClient;
 }) => {
   const router = Router();
 
   router.use(requireAuth(deps.authService));
+
+  const aiDraftBodySchema = z.object({
+    prompt: z.string().trim().min(1).max(2000)
+  });
+
+  router.post("/ai-draft", async (req, res, next) => {
+    try {
+      if (!deps.llm) {
+        throw new HttpError(501, "LLM 服务未配置");
+      }
+
+      const { prompt } = aiDraftBodySchema.parse(req.body ?? {});
+
+      const service = new CharacterDraftService(deps.llm, deps.rules);
+      const result = await service.generate(prompt);
+
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.get("/", async (req, res, next) => {
     try {

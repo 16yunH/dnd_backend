@@ -1,20 +1,10 @@
-// Phase 2 schema — introduces the persistent layer that will back the
-// `Store` interface in src/services/store.ts. pgvector is enabled for
-// phase 4 RAG; no application code depends on it yet.
-
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
-  provider   = "postgresql"
-  url        = env("DATABASE_URL")
-  extensions = [pgvector(map: "vector")]
-}
-
-generator pgvectorPreview {
-  provider        = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]
+  provider = "postgresql"
 }
 
 model User {
@@ -60,7 +50,8 @@ model Character {
 }
 
 model Room {
-  id           String       @id // 6-char invite code, uppercased
+  id           String       @id
+  inviteCode   String       @unique
   hostUserId   String
   state        String       @default("waiting")
   roomVersion  Int          @default(1)
@@ -92,7 +83,7 @@ model RoomMessage {
   id            String   @id @default(uuid())
   roomId        String
   seq           Int
-  role          String   // system | dm | player
+  role          String
   senderUserId  String?
   senderName    String?
   content       String
@@ -104,7 +95,6 @@ model RoomMessage {
   @@index([roomId, createdAt])
 }
 
-/// Periodic summaries for context compression (phase 4).
 model RoomSummary {
   id        String   @id @default(uuid())
   roomId    String
@@ -116,8 +106,6 @@ model RoomSummary {
   @@index([roomId, upToSeq])
 }
 
-/// RAG corpus. Embeddings are populated by phase-4 ingest tooling.
-/// `Unsupported` keeps Prisma happy — we'll query via raw SQL.
 model RuleChunk {
   id        String                       @id @default(uuid())
   source    String

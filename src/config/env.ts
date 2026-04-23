@@ -33,9 +33,11 @@ export const env = {
   LLM_BASE_URL: str(process.env.LLM_BASE_URL),
 
   EMBEDDING_PROVIDER: str(process.env.EMBEDDING_PROVIDER, "ollama"),
-  EMBEDDING_MODEL: str(process.env.EMBEDDING_MODEL, "bge-m3"),
+  EMBEDDING_MODEL: str(process.env.EMBEDDING_MODEL),
   EMBEDDING_API_KEY: str(process.env.EMBEDDING_API_KEY),
-  EMBEDDING_BASE_URL: str(process.env.EMBEDDING_BASE_URL, "http://127.0.0.1:11434")
+  EMBEDDING_BASE_URL: str(process.env.EMBEDDING_BASE_URL),
+
+  RAG_DUMP_PATH: str(process.env.RAG_DUMP_PATH)
 } as const;
 
 export const isProduction = () => env.NODE_ENV === "production";

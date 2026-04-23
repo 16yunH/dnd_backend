@@ -6,6 +6,7 @@ import type {
   DbFile,
   RoomMessageRecord,
   RoomRecord,
+  RoomSummaryRecord,
   UserRecord
 } from "../types/domain.js";
 import type { Store } from "./store.js";
@@ -15,7 +16,8 @@ const DEFAULT_DB: DbFile = {
   characters: [],
   rooms: [],
   roomMessages: [],
-  roomSeqById: {}
+  roomSeqById: {},
+  roomSummaries: []
 };
 
 /**
@@ -41,7 +43,8 @@ export class JsonStore implements Store {
         characters: parsed.characters ?? [],
         rooms: parsed.rooms ?? [],
         roomMessages: parsed.roomMessages ?? [],
-        roomSeqById: parsed.roomSeqById ?? {}
+        roomSeqById: parsed.roomSeqById ?? {},
+        roomSummaries: parsed.roomSummaries ?? []
       };
     } catch {
       await this.writeDb(DEFAULT_DB);
@@ -50,7 +53,8 @@ export class JsonStore implements Store {
         characters: [],
         rooms: [],
         roomMessages: [],
-        roomSeqById: {}
+        roomSeqById: {},
+        roomSummaries: []
       };
     }
   }
@@ -183,5 +187,29 @@ export class JsonStore implements Store {
       db.roomMessages.push(record);
       return record;
     });
+  }
+
+  public async appendRoomSummary(input: {
+    roomId: string;
+    upToSeq: number;
+    summary: string;
+  }): Promise<RoomSummaryRecord> {
+    return this.mutate((db) => {
+      const record: RoomSummaryRecord = {
+        id: randomUUID(),
+        roomId: input.roomId,
+        upToSeq: input.upToSeq,
+        summary: input.summary,
+        createdAt: new Date().toISOString()
+      };
+      db.roomSummaries.push(record);
+      return record;
+    });
+  }
+
+  public async getLatestSummary(roomId: string): Promise<RoomSummaryRecord | undefined> {
+    const db = await this.readDb();
+    const summaries = db.roomSummaries.filter((s) => s.roomId === roomId);
+    return summaries.sort((a, b) => b.upToSeq - a.upToSeq)[0];
   }
 }

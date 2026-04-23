@@ -7,9 +7,10 @@ describe("smoke routes", () => {
   let ctx: ReturnType<typeof makeTempStore>;
   let app: ReturnType<typeof createApp>["app"];
 
-  beforeEach(() => {
+  beforeEach(async () => {
     ctx = makeTempStore();
-    app = createApp({ store: ctx.store, enableNarrative: false }).app;
+    const result = await createApp({ store: ctx.store, enableNarrative: false });
+    app = result.app;
   });
 
   afterEach(() => ctx.cleanup());

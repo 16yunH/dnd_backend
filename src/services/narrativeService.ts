@@ -6,7 +6,9 @@ import type {
   LLMClient,
   ToolSchema
 } from "./llm/index.js";
+import type { RagService } from "./rag/ragService.js";
 import type { Store } from "./store.js";
+import type { MemoryService } from "./memoryService.js";
 
 /**
  * Narrative orchestration for the AI DM.
@@ -31,6 +33,8 @@ export interface NarrativeTurn {
   requestedSkill?: string;
   /** Tokens consumed across the LLM calls, if the provider reported them. */
   totalTokens?: number;
+  /** Top-k RAG hits retrieved for this turn (metadata only, for debugging). */
+  retrievedSources?: Array<{ source: string; section?: string; score: number }>;
 }
 
 const TOOL_REQUIRE_CHECK: ToolSchema = {
@@ -128,11 +132,26 @@ const describeCharacter = (character: CharacterRecord): string => {
 const describeCampaign = (room: RoomRecord): string =>
   `战役：${room.config.campaign}（扩展：${room.config.expansion}）。房间 ${room.id}，当前玩家 ${room.players.length} 人。`;
 
+export interface NarrativeServiceOptions {
+  rag?: RagService;
+  ragTopK?: number;
+  memory?: MemoryService;
+}
+
 export class NarrativeService {
+  private readonly rag?: RagService;
+  private readonly ragTopK: number;
+  private readonly memory?: MemoryService;
+
   constructor(
     private readonly llm: LLMClient,
-    private readonly store: Store
-  ) {}
+    private readonly store: Store,
+    options: NarrativeServiceOptions = {}
+  ) {
+    this.rag = options.rag;
+    this.ragTopK = options.ragTopK ?? 4;
+    this.memory = options.memory;
+  }
 
   public async respondToAction(params: {
     room: RoomRecord;
@@ -142,8 +161,44 @@ export class NarrativeService {
   }): Promise<NarrativeTurn> {
     const { room, character, playerContent, history } = params;
 
+    if (this.memory) {
+      this.memory.summarizeIfNeeded(room.id, history).catch((err) => {
+        logger.warn({ err, roomId: room.id }, "memory: background summarization failed");
+      });
+    }
+
     const systemPieces = [SYSTEM_PROMPT, describeCampaign(room)];
     if (character) systemPieces.push(describeCharacter(character));
+
+    if (this.memory) {
+      try {
+        const summary = await this.memory.getSummaryContext(room.id);
+        if (summary) {
+          systemPieces.push(`【前情摘要】${summary}`);
+        }
+      } catch (err) {
+        logger.warn({ err, roomId: room.id }, "memory: failed to load summary context");
+      }
+    }
+
+    let retrievedSources: NarrativeTurn["retrievedSources"];
+    if (this.rag) {
+      try {
+        const lastDm = [...history].reverse().find((m) => m.role === "dm");
+        const query = `${lastDm?.content ?? ""}\n${playerContent}`.trim();
+        const hits = await this.rag.retrieve(query, this.ragTopK);
+        if (hits.length > 0) {
+          systemPieces.push(this.rag.formatHits(hits));
+          retrievedSources = hits.map((h) => ({
+            source: h.source,
+            section: h.section,
+            score: h.score
+          }));
+        }
+      } catch (err) {
+        logger.warn({ err }, "rag retrieval failed — continuing without context");
+      }
+    }
 
     const transcript = recentToChatMessages(room, history);
     transcript.push({
@@ -167,7 +222,8 @@ export class NarrativeService {
     if (!toolCall || !toolCall.arguments) {
       return {
         narration: first.content.trim() || "（DM 沉默不语。）",
-        totalTokens
+        totalTokens,
+        retrievedSources
       };
     }
 
@@ -255,7 +311,8 @@ export class NarrativeService {
       narration: followup.content.trim() || first.content.trim() || "（DM 在沉思。）",
       check,
       requestedSkill: skill,
-      totalTokens
+      totalTokens,
+      retrievedSources
     };
   }
 }
