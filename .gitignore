@@ -1,9 +1,8 @@
 node_modules/
 dist/
+generated/
 .env
 .env.local
 .env.*.local
 storage/
-generated/
-src/generated/
 .DS_Store

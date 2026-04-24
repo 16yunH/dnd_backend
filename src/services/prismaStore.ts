@@ -8,7 +8,7 @@ import type {
 import type { Store } from "./store.js";
 import { getPrismaClient } from "../db/prismaClient.js";
 
-type PrismaClient = import("../generated/prisma/client.js").PrismaClient;
+type PrismaClient = any;
 
 function mapUserRecord(row: { id: string; nickname: string; createdAt: Date }): UserRecord {
   return {
@@ -173,7 +173,6 @@ export class PrismaStore implements Store {
 
   async upsertCharacter(record: CharacterRecord): Promise<CharacterRecord> {
     const db = this.ensure();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const json = (v: unknown): any => v;
     const data = {
       ownerUserId: record.ownerUserId,
@@ -222,10 +221,9 @@ export class PrismaStore implements Store {
 
   async upsertRoom(room: RoomRecord): Promise<RoomRecord> {
     const db = this.ensure();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const configJson: any = buildRoomConfig(room);
 
-    await db.$transaction(async (tx) => {
+    await db.$transaction(async (tx: any) => {
       await tx.room.upsert({
         where: { id: room.id },
         update: {
@@ -249,7 +247,7 @@ export class PrismaStore implements Store {
         where: { roomId: room.id },
         select: { id: true }
       });
-      const existingIds = new Set(existingPlayers.map((p) => p.id));
+      const existingIds: Set<string> = new Set(existingPlayers.map((p: { id: string }) => p.id));
       const incomingIds = new Set(room.players.map((p) => p.id));
 
       for (const id of existingIds) {
@@ -293,7 +291,7 @@ export class PrismaStore implements Store {
         orderBy: { seq: "asc" },
         take: limit ?? 100
       });
-      return rows.map((r) => ({
+      return rows.map((r: any) => ({
         id: r.id,
         roomId: r.roomId,
         seq: r.seq,
@@ -318,7 +316,7 @@ export class PrismaStore implements Store {
     meta?: Record<string, unknown>;
   }): Promise<RoomMessageRecord> {
     const db = this.ensure();
-    return db.$transaction(async (tx) => {
+    return db.$transaction(async (tx: any) => {
       const maxRow = await tx.roomMessage.findFirst({
         where: { roomId: input.roomId },
         orderBy: { seq: "desc" },
@@ -334,7 +332,6 @@ export class PrismaStore implements Store {
           senderUserId: input.senderUserId ?? null,
           senderName: input.senderName ?? null,
           content: input.content,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           meta: (input.meta as any) ?? undefined
         }
       });

@@ -40,7 +40,7 @@ const PROVIDER_DEFAULTS: Record<string, ProviderDefaults> = {
     baseUrl: "https://open.bigmodel.cn/api/paas/v4",
     model: "embedding-3",
     dialect: "openai",
-    dimensions: 2048,
+    dimensions: 1024,
     requiresKey: true
   }
 };

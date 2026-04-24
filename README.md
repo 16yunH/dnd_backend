@@ -22,7 +22,7 @@ D&D 5e AI 跑团平台后端，提供 REST API + Socket.IO 实时通信。集成
 
 | 层级 | 技术 |
 | --- | --- |
-| 运行时 | Node.js 20+ |
+| 运行时 | Node.js 22+ |
 | 语言 | TypeScript |
 | Web 框架 | Express 5 |
 | 实时通信 | Socket.IO |
@@ -33,7 +33,7 @@ D&D 5e AI 跑团平台后端，提供 REST API + Socket.IO 实时通信。集成
 
 ## 前置要求
 
-- **Node.js** 20+（推荐 22 LTS）
+- **Node.js** 22+（推荐 22 LTS）
 - **npm** 10+
 - （可选）**PostgreSQL** + **Docker** — 使用 PrismaStore 持久化存储
 - （可选）**Ollama** — 本地运行 LLM / Embedding 模型
@@ -70,7 +70,7 @@ npm run dev
 | `LOG_LEVEL` | 日志级别：`trace` / `debug` / `info` / `warn` / `error` | `info` | 否 |
 | `CORS_ORIGINS` | 允许的前端来源，逗号分隔；开发环境可用 `*` | `http://localhost:5173,http://127.0.0.1:5173` | 否 |
 | `DATABASE_URL` | PostgreSQL 连接串；设置后启用 PrismaStore | 空（使用 JsonStore） | 否 |
-| `LLM_PROVIDER` | LLM 提供商：`deepseek` / `zhipu` / `ollama` | `deepseek` | 否 |
+| `LLM_PROVIDER` | LLM 提供商：`deepseek` / `zhipu` / `ollama` | `zhipu` | 否 |
 | `LLM_MODEL` | LLM 模型名称；留空则使用提供商默认模型 | 空 | 否 |
 | `LLM_API_KEY` | LLM API Key；Ollama 可不填 | 空 | 使用云端 LLM 时必填 |
 | `LLM_BASE_URL` | LLM API 基础 URL；留空则使用提供商默认地址 | 空 | 否 |
@@ -181,7 +181,7 @@ RAG_DUMP_PATH=./storage/rag-dump.json
 | `ollama` | `bge-m3` | 1024 | 否 |
 | `openai` | `text-embedding-3-small` | 1536 | 是 |
 | `deepseek` | `deepseek-embedding` | 1024 | 是 |
-| `zhipu` | `embedding-3` | 2048 | 是 |
+| `zhipu` | `embedding-3` | 1024 | 是 |
 
 > **注意**：RAG 索引的 Embedding 维度必须与运行时配置一致。如果更换了 Embedding Provider，需要重新运行 Ingest。
 
@@ -284,7 +284,9 @@ dnd_backend/
 │   └── types/
 │       ├── domain.ts             # 领域类型定义
 │       ├── data-modules.d.ts     # 数据模块类型
-│       └── express.d.ts          # Express 扩展类型
+│       ├── express.d.ts          # Express 扩展类型
+│       └── prisma.d.ts           # Prisma Client 类型声明
+├── generated/                    # Prisma 生成代码（.gitignore 排除）
 ├── data/                         # 结构化 5e 规则事实源（JS 模块）
 ├── rules-corpus/                 # RAG 规则文档（Markdown）
 ├── tools/

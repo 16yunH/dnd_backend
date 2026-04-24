@@ -7,15 +7,8 @@ interface HttpEmbeddingOptions {
   model: string;
   baseUrl: string;
   apiKey?: string;
-  /** Dimensions the client advertises (must match vectorStore). */
   dimensions: number;
-  /** Optional request-body builder override. */
   timeoutMs?: number;
-  /**
-   * Dialect selector:
-   *  - "openai": POST /embeddings with { model, input }
-   *  - "ollama": POST /api/embeddings with { model, prompt } per item
-   */
   dialect: "openai" | "ollama";
 }
 
@@ -86,10 +79,9 @@ export class HttpEmbeddingClient implements EmbeddingClient {
     const inputs = Array.isArray(input) ? input : [input];
 
     if (this.dialect === "openai") {
-      const data = (await this.postJson(`${this.baseUrl}/embeddings`, {
-        model: this.model,
-        input: inputs
-      })) as { data: Array<{ embedding: number[] }> };
+      const body: Record<string, unknown> = { model: this.model, input: inputs };
+      if (this.dimensions) body.dimensions = this.dimensions;
+      const data = (await this.postJson(`${this.baseUrl}/embeddings`, body)) as { data: Array<{ embedding: number[] }> };
       return data.data.map((d) => d.embedding);
     }
 
